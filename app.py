@@ -1,9 +1,11 @@
 import os
 import streamlit as st
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.documents import Document
+from langchain_openai import OpenAIEmbeddings
+from langchain_openrouter import ChatOpenRouter
 from langchain_community.vectorstores import FAISS
-from langchain.tools import tool
+from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 
 # ---------------------------------------------------------
@@ -30,7 +32,9 @@ st.sidebar.write("✅ OpenRouter API Key geladen")
 @st.cache_resource
 def setup_rag_tool(_api_key):
     embeddings = OpenAIEmbeddings(
-        openai_api_key=_api_key, base_url="https://openrouter.ai/v1"
+        model="text-embedding-3-small",
+        openai_api_key=_api_key,
+        base_url="https://openrouter.ai/api/v1",
     )
 
     # Dummy-Dokumente für das MVP
@@ -68,11 +72,10 @@ def setup_rag_tool(_api_key):
 # ---------------------------------------------------------
 @st.cache_resource
 def setup_agent(_api_key):
-    # LLM initialisieren (GPT-4o-mini ist schnell und günstig fürs MVP)
-    llm = ChatOpenAI(
-        model="minimax/minimax-m2.5:free",
-        openai_api_key=_api_key,
-        base_url="https://openrouter.ai/v1",
+    # LLM initialisieren
+    llm = ChatOpenRouter(
+        model="openrouter/free",
+        api_key=_api_key,
         temperature=0,
     )
 
@@ -111,7 +114,10 @@ if prompt := st.chat_input("Frag mich etwas, z.B. 'Was sind Deep Agents?'"):
             # LangGraph erwartet ein Dict mit einem "messages" Array
             inputs = {
                 "messages": [
-                    (msg["role"], msg["content"]) for msg in st.session_state.messages
+                    HumanMessage(content=msg["content"])
+                    if msg["role"] == "user"
+                    else AIMessage(content=msg["content"])
+                    for msg in st.session_state.messages
                 ]
             }
 
