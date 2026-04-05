@@ -3,7 +3,7 @@ import streamlit as st
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.documents import Document
 from langchain_community.vectorstores import FAISS
-from langchain.tools.retriever import create_retriever_tool
+from langchain.tools import tool
 from langgraph.prebuilt import create_react_agent
 
 # ---------------------------------------------------------
@@ -54,11 +54,12 @@ def setup_rag_tool(_api_key):
     retriever = vectorstore.as_retriever(search_kwargs={"k": 2})
 
     # Als Tool für den Agenten verpacken
-    rag_tool = create_retriever_tool(
-        retriever,
-        name="wissensdatenbank_suche",
-        description="Nutze dieses Tool, um nach Informationen über LangChain, LangGraph, Deep Agents oder Streamlit zu suchen.",
-    )
+    @tool
+    def rag_tool(query: str) -> str:
+        """Suche in der Wissensdatenbank nach Informationen zu LangChain, LangGraph, Deep Agents oder Streamlit."""
+        docs = retriever.invoke(query)
+        return "\n\n".join([doc.page_content for doc in docs])
+
     return rag_tool
 
 
