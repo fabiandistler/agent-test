@@ -1,12 +1,12 @@
 import os
 import streamlit as st
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
-from langchain_openrouter import ChatOpenRouter
 from langchain_community.vectorstores import FAISS
 from langchain_core.tools import tool
-from langgraph.prebuilt import create_react_agent
+from langgraph.checkpoint.memory import MemorySaver
+from deepagents import create_deep_agent
 
 # ---------------------------------------------------------
 # 1. Streamlit Setup & Konfiguration
@@ -68,22 +68,23 @@ def setup_rag_tool(_api_key):
 
 
 # ---------------------------------------------------------
-# 3. Agent Setup (LangGraph)
+# 3. Agent Setup (Deep Agents)
 # ---------------------------------------------------------
 @st.cache_resource
 def setup_agent(_api_key):
-    # LLM initialisieren
-    llm = ChatOpenRouter(
-        model="openrouter/free",
-        api_key=_api_key,
-        temperature=0,
-    )
-
     # RAG Tool laden
     rag_tool = setup_rag_tool(_api_key)
 
-    # LangGraph ReAct Agent erstellen
-    agent = create_react_agent(llm, tools=[rag_tool])
+    # Deep Agents erstellt den Orchestrator; `agent.invoke()` bleibt die Ausführungsschnittstelle.
+    agent = create_deep_agent(
+        model="openrouter:openai/gpt-oss-20b:free",
+        tools=[rag_tool],
+        system_prompt=(
+            "Du bist ein hilfreicher Assistent. Antworte auf Deutsch, halte Antworten knapp "
+            "und nutze `rag_tool`, wenn du Wissen aus der eingebetteten Wissensdatenbank brauchst."
+        ),
+        checkpointer=MemorySaver(),
+    )
     return agent
 
 
@@ -94,6 +95,9 @@ agent = setup_agent(api_key)
 # ---------------------------------------------------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
+
+if "thread_id" not in st.session_state:
+    st.session_state.thread_id = "streamlit-session"
 
 # Bisherigen Chatverlauf anzeigen
 for msg in st.session_state.messages:
@@ -110,19 +114,13 @@ if prompt := st.chat_input("Frag mich etwas, z.B. 'Was sind Deep Agents?'"):
     # Agenten-Antwort generieren
     with st.chat_message("assistant"):
         with st.spinner("Agent überlegt und durchsucht ggf. die Datenbank..."):
-            # Die komplette Message-Historie an den Agenten übergeben (für den Kontext)
-            # LangGraph erwartet ein Dict mit einem "messages" Array
-            inputs = {
-                "messages": [
-                    HumanMessage(content=msg["content"])
-                    if msg["role"] == "user"
-                    else AIMessage(content=msg["content"])
-                    for msg in st.session_state.messages
-                ]
-            }
+            config = {"configurable": {"thread_id": st.session_state.thread_id}}
 
-            # Agent aufrufen
-            result = agent.invoke(inputs)
+            # Nur die neue Nachricht senden; der Checkpointer hält den Thread-Kontext fest.
+            result = agent.invoke(
+                {"messages": [HumanMessage(content=prompt)]},
+                config=config,
+            )
 
             # Die letzte Nachricht ist die finale Antwort des LLMs
             final_response = result["messages"][-1].content
