@@ -1,7 +1,7 @@
 # Deep Agent RAG MVP
 
 Demo-Projekt, das die Integration von **LangGraph** und **Streamlit** für einen zustandsbehafteten KI-Agenten mit RAG zeigt.
-Hier ist eine deployte live Version der App: https://sl-rag-agent.streamlit.app/
+Hier ist eine deployte live Version der App: <https://sl-rag-agent.streamlit.app/>
 
 ## Features
 
