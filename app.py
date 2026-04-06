@@ -57,7 +57,6 @@ def setup_rag_tool(_api_key):
     vectorstore = FAISS.from_documents(docs, embeddings)
     retriever = vectorstore.as_retriever(search_kwargs={"k": 2})
 
-    # Als Tool für den Agenten verpacken
     @tool
     def rag_tool(query: str) -> str:
         """Suche in der Wissensdatenbank nach Informationen zu LangChain, LangGraph, Deep Agents oder Streamlit."""
@@ -72,10 +71,8 @@ def setup_rag_tool(_api_key):
 # ---------------------------------------------------------
 @st.cache_resource
 def setup_agent(_api_key):
-    # RAG Tool laden
     rag_tool = setup_rag_tool(_api_key)
 
-    # Deep Agents erstellt den Orchestrator; `agent.invoke()` bleibt die Ausführungsschnittstelle.
     agent = create_deep_agent(
         model="openrouter:openai/gpt-oss-20b:free",
         tools=[rag_tool],
@@ -104,27 +101,23 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# User Input
+
 if prompt := st.chat_input("Frag mich etwas, z.B. 'Was sind Deep Agents?'"):
     # User-Nachricht zum UI und Session State hinzufügen
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Agenten-Antwort generieren
     with st.chat_message("assistant"):
         with st.spinner("Agent überlegt und durchsucht ggf. die Datenbank..."):
             config = {"configurable": {"thread_id": st.session_state.thread_id}}
 
-            # Nur die neue Nachricht senden; der Checkpointer hält den Thread-Kontext fest.
             result = agent.invoke(
                 {"messages": [HumanMessage(content=prompt)]},
                 config=config,
             )
 
-            # Die letzte Nachricht ist die finale Antwort des LLMs
             final_response = result["messages"][-1].content
             st.markdown(final_response)
 
-    # Assistant-Nachricht zum Session State hinzufügen
     st.session_state.messages.append({"role": "assistant", "content": final_response})
